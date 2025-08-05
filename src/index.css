@@ -2,39 +2,50 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
+/* Professional Image Encryption Dashboard Design System
+All colors MUST be HSL for consistent theming.
 */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Gradient Background System */
+    --gradient-primary: linear-gradient(135deg, hsl(220, 26%, 96%) 0%, hsl(0, 0%, 100%) 100%);
+    --gradient-subtle: linear-gradient(180deg, hsl(220, 26%, 98%) 0%, hsl(210, 20%, 95%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(212, 100%, 48%) 0%, hsl(215, 84%, 56%) 100%);
+    
+    /* Core Colors */
+    --background: 220 26% 96%;
+    --foreground: 220 20% 15%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 220 20% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 220 20% 15%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Professional Blue Accent System */
+    --primary: 212 100% 48%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 215 84% 56%;
+    --primary-light: 212 100% 95%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Neutral Grays */
+    --secondary: 220 16% 96%;
+    --secondary-foreground: 220 20% 25%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 220 16% 94%;
+    --muted-foreground: 220 14% 45%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 212 100% 48%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    /* Borders and Inputs */
+    --border: 220 14% 88%;
+    --input: 220 14% 92%;
+    --ring: 212 100% 48%;
 
     --radius: 0.5rem;
 
@@ -100,6 +111,38 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    background: var(--gradient-primary);
+    @apply text-foreground;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+}
+
+@layer components {
+  /* Upload Zone Styles */
+  .upload-zone {
+    @apply border-2 border-dashed border-border bg-card/50 backdrop-blur-sm rounded-xl p-8 text-center transition-all duration-300 hover:border-primary/50 hover:bg-card/70;
+  }
+  
+  .upload-zone.drag-over {
+    @apply border-primary bg-primary-light/30;
+  }
+
+  /* Image Preview Styles */
+  .image-preview {
+    @apply rounded-lg shadow-sm border border-border bg-card/80 backdrop-blur-sm p-4 transition-all duration-300;
+  }
+
+  /* Metrics Card */
+  .metrics-card {
+    @apply bg-card/90 backdrop-blur-sm rounded-lg border border-border p-4 shadow-sm;
+  }
+
+  /* Professional Button Variants */
+  .btn-primary {
+    @apply bg-primary text-primary-foreground hover:bg-primary-hover transition-all duration-200 shadow-sm hover:shadow-md;
+  }
+
+  .btn-secondary {
+    @apply bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-all duration-200;
   }
 }
