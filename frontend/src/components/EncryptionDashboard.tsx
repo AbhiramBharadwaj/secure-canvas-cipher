@@ -36,6 +36,8 @@ interface ErrorState {
   details?: string;
 }
 
+const API_URL = 'http://localhost:5050';
+
 export const EncryptionDashboard = () => {
   const [uploadedImage, setUploadedImage] = useState<File | null>(null);
   const [selectedAlgorithm, setSelectedAlgorithm] = useState<EncryptionAlgorithm>('aes');
@@ -55,7 +57,6 @@ export const EncryptionDashboard = () => {
     const stored = localStorage.getItem('theme');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     const shouldUseDark = stored === 'dark' || (!stored && prefersDark);
-    
     setIsDarkMode(shouldUseDark);
     document.documentElement.classList.toggle('dark', shouldUseDark);
   }, []);
@@ -98,7 +99,7 @@ export const EncryptionDashboard = () => {
     setUploadedImage(file);
     const url = URL.createObjectURL(file);
     setOriginalImageUrl(url);
-    
+
     // Reset state when new image is uploaded
     setEncryptedImageUrl(null);
     setDecryptedImageUrl(null);
@@ -106,154 +107,111 @@ export const EncryptionDashboard = () => {
     setHasEncrypted(false);
     setProgress(0);
     setErrorState(null);
-    
+
     toast.success(`Image uploaded: ${file.name}`);
   }, []);
 
-  const simulateProgressiveEncryption = async (): Promise<string> => {
+  // Utility to convert File to Base64 string
+  const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      const img = new Image();
-      
-      img.onload = () => {
-        try {
-          canvas.width = img.width;
-          canvas.height = img.height;
-          ctx?.drawImage(img, 0, 0);
-          
-          if (ctx) {
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
-            const totalPixels = data.length / 4;
-            
-            // Simulate progressive encryption with progress updates
-            let processedPixels = 0;
-            const batchSize = Math.max(1000, Math.floor(totalPixels / 20));
-            
-            const processBatch = () => {
-              const endIndex = Math.min(processedPixels + batchSize, totalPixels);
-              
-              for (let i = processedPixels; i < endIndex; i++) {
-                const pixelIndex = i * 4;
-                
-                if (selectedAlgorithm === 'lsb') {
-                  // LSB: Modify least significant bits
-                  data[pixelIndex] = (data[pixelIndex] & 0xFE) | (Math.random() > 0.5 ? 1 : 0);
-                  data[pixelIndex + 1] = (data[pixelIndex + 1] & 0xFE) | (Math.random() > 0.5 ? 1 : 0);
-                  data[pixelIndex + 2] = (data[pixelIndex + 2] & 0xFE) | (Math.random() > 0.5 ? 1 : 0);
-                } else {
-                  // Other algorithms: More noticeable changes
-                  const noise = Math.random() * 50 - 25;
-                  data[pixelIndex] = Math.max(0, Math.min(255, data[pixelIndex] + noise));
-                  data[pixelIndex + 1] = Math.max(0, Math.min(255, data[pixelIndex + 1] + noise));
-                  data[pixelIndex + 2] = Math.max(0, Math.min(255, data[pixelIndex + 2] + noise));
-                }
-              }
-              
-              processedPixels = endIndex;
-              const progressPercent = (processedPixels / totalPixels) * 100;
-              setProgress(progressPercent);
-              
-              if (processedPixels < totalPixels) {
-                setTimeout(processBatch, 50); // Small delay for smooth progress
-              } else {
-                ctx.putImageData(imageData, 0, 0);
-                canvas.toBlob((blob) => {
-                  if (blob) {
-                    resolve(URL.createObjectURL(blob));
-                  } else {
-                    reject(new Error('Failed to create encrypted image'));
-                  }
-                }, 'image/png');
-              }
-            };
-            
-            processBatch();
-          }
-        } catch (error) {
-          reject(error);
-        }
-      };
-      
-      img.onerror = () => reject(new Error('Failed to load image'));
-      img.src = originalImageUrl!;
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
     });
   };
 
-  const simulateDecryption = async (): Promise<string> => {
-    return new Promise((resolve) => {
-      let currentProgress = 0;
-      const interval = setInterval(() => {
-        currentProgress += 10;
-        setProgress(currentProgress);
-        
-        if (currentProgress >= 100) {
-          clearInterval(interval);
-          resolve(originalImageUrl!);
-        }
-      }, 100);
+  // API call for encrypt
+  const apiEncrypt = async (imageBase64: string, key: string, algorithm: string) => {
+    const base64Data = imageBase64.split(',')[1];
+    const response = await fetch(`${API_URL}/encrypt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: base64Data, key, algorithm }),
     });
+    return await response.json();
   };
 
-  const generateMetrics = (): MetricsData => {
-    const baseEncryption = selectedAlgorithm === 'lsb' ? 50 : selectedAlgorithm === 'aes' ? 200 : 150;
-    const baseDecryption = baseEncryption * 0.8;
-    
-    return {
-      encryptionTime: baseEncryption + Math.random() * 100,
-      decryptionTime: baseDecryption + Math.random() * 80,
-      psnr: selectedAlgorithm === 'lsb' ? 45 + Math.random() * 10 : 25 + Math.random() * 15,
-      ssim: selectedAlgorithm === 'lsb' ? 0.95 + Math.random() * 0.04 : 0.7 + Math.random() * 0.2
-    };
+  // API call for decrypt
+  const apiDecrypt = async (encryptedBase64: string, key: string, algorithm: string) => {
+    const base64Data = encryptedBase64.split(',')[1];
+    const response = await fetch(`${API_URL}/decrypt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ encrypted_image: base64Data, key, algorithm }),
+    });
+    return await response.json();
   };
 
   const handleEncrypt = async () => {
-    if (!uploadedImage || !originalImageUrl) return;
-    
+    if (!uploadedImage) {
+      setErrorState({ type: 'error', message: 'No image uploaded' });
+      return;
+    }
+    if (!selectedAlgorithm) {
+      setErrorState({ type: 'error', message: 'No encryption algorithm selected' });
+      return;
+    }
+    if (!uploadedImage) return;
+
     setIsProcessing(true);
-    setProgress(0);
+    setProgress(10);
     setErrorState(null);
-    toast.info(`Starting ${selectedAlgorithm.toUpperCase()} encryption...`);
-    
+
     try {
-      const startTime = Date.now();
-      const encryptedUrl = await simulateProgressiveEncryption();
-      const encryptionTime = Date.now() - startTime;
-      
-      setEncryptedImageUrl(encryptedUrl);
+      const base64String = await fileToBase64(uploadedImage);
+      setProgress(20);
+
+      const data = await apiEncrypt(base64String, '', selectedAlgorithm);
+
+      if (data.error) {
+        setErrorState({ type: 'error', message: data.error });
+        toast.error(data.error);
+        setIsProcessing(false);
+        setProgress(0);
+        return;
+      }
+
+      setProgress(100);
+
+      if (selectedAlgorithm === 'lsb') {
+        // LSB encryption modifies image subtly, use original image URL for preview
+        setEncryptedImageUrl(originalImageUrl);
+      } else {
+        setEncryptedImageUrl(`data:image/png;base64,${data.encrypted_image}`);
+      }
       setHasEncrypted(true);
-      
-      // Generate metrics
-      const newMetrics = generateMetrics();
-      newMetrics.encryptionTime = encryptionTime;
-      setMetrics(newMetrics);
-      
-      // Add to history
-      const historyItem: HistoryItem = {
-        id: Date.now().toString(),
-        originalName: uploadedImage.name,
-        algorithm: selectedAlgorithm,
-        timestamp: new Date(),
-        encryptedUrl,
-        metrics: newMetrics
+
+      // Simple dummy metrics for demo - can be improved with real backend metrics
+      const newMetrics: MetricsData = {
+        encryptionTime: Math.random() * 500 + 100,
+        decryptionTime: 0,
+        psnr: 30 + Math.random() * 10,
+        ssim: 0.7 + Math.random() * 0.3,
       };
-      setHistory(prev => [historyItem, ...prev.slice(0, 9)]); // Keep last 10 items
-      
-      setErrorState({
-        type: 'success',
-        message: 'Encryption completed successfully!',
-        details: `Processed in ${encryptionTime}ms using ${selectedAlgorithm.toUpperCase()}`
-      });
-      
-      toast.success('Image encrypted successfully!');
+      setMetrics(newMetrics);
+
+      // Update history
+      setHistory(prev => [
+        {
+          id: Date.now().toString(),
+          originalName: uploadedImage.name,
+          algorithm: selectedAlgorithm,
+          timestamp: new Date(),
+          encryptedUrl: selectedAlgorithm === 'lsb' ? originalImageUrl! : `data:image/png;base64,${data.encrypted_image}`,
+          metrics: newMetrics,
+        },
+        ...prev.slice(0, 9),
+      ]);
+
+      toast.success('Encryption completed successfully!');
     } catch (error) {
       setErrorState({
         type: 'error',
         message: 'Encryption failed',
-        details: error instanceof Error ? error.message : 'An unknown error occurred'
+        details: error instanceof Error ? error.message : 'Unknown error',
       });
-      toast.error('Encryption failed. Please try again.');
+      toast.error('Encryption failed');
     } finally {
       setIsProcessing(false);
       setProgress(0);
@@ -261,47 +219,48 @@ export const EncryptionDashboard = () => {
   };
 
   const handleDecrypt = async () => {
-    if (!encryptedImageUrl) return;
-    
+    if (!encryptedImageUrl) {
+      setErrorState({ type: 'error', message: 'No encrypted image to decrypt' });
+      return;
+    }
+
     setIsProcessing(true);
-    setProgress(0);
+    setProgress(10);
     setErrorState(null);
-    toast.info('Starting decryption...');
-    
+
     try {
-      const startTime = Date.now();
-      const decryptedUrl = await simulateDecryption();
-      const decryptionTime = Date.now() - startTime;
-      
-      setDecryptedImageUrl(decryptedUrl);
-      
-      // Update metrics with decryption time
-      if (metrics) {
-        const updatedMetrics = { ...metrics, decryptionTime };
-        setMetrics(updatedMetrics);
-        
-        // Update history
-        setHistory(prev => prev.map(item => 
-          item.encryptedUrl === encryptedImageUrl 
-            ? { ...item, decryptedUrl, metrics: updatedMetrics }
-            : item
-        ));
+      const data = await apiDecrypt(encryptedImageUrl, '', selectedAlgorithm);
+
+      if (data.error) {
+        setErrorState({ type: 'error', message: data.error });
+        toast.error(data.error);
+        setIsProcessing(false);
+        setProgress(0);
+        return;
       }
-      
-      setErrorState({
-        type: 'success',
-        message: 'Decryption completed successfully!',
-        details: `Restored in ${decryptionTime}ms`
-      });
-      
-      toast.success('Image decrypted successfully!');
+
+      setProgress(100);
+
+      if (selectedAlgorithm === 'lsb') {
+        // Show decrypted text message
+        toast.success('Decryption completed: message retrieved');
+        setDecryptedImageUrl(null);
+        setMetrics(prev => prev ? { ...prev, decryptionTime: Math.random() * 400 + 100 } : null);
+        // For LSB decrypted message - you can expand to display text in UI if needed
+        toast(`Decrypted message: ${data.decrypted_message}`);
+      } else {
+        setDecryptedImageUrl(`data:image/png;base64,${data.decrypted_image}`);
+        setMetrics(prev => prev ? { ...prev, decryptionTime: Math.random() * 400 + 100 } : null);
+      }
+
+      toast.success('Decryption completed successfully!');
     } catch (error) {
       setErrorState({
         type: 'error',
         message: 'Decryption failed',
-        details: error instanceof Error ? error.message : 'An unknown error occurred'
+        details: error instanceof Error ? error.message : 'Unknown error',
       });
-      toast.error('Decryption failed. Please try again.');
+      toast.error('Decryption failed');
     } finally {
       setIsProcessing(false);
       setProgress(0);
@@ -315,9 +274,9 @@ export const EncryptionDashboard = () => {
     setDecryptedImageUrl(null);
     setMetrics(null);
     setHasEncrypted(false);
-    setSelectedAlgorithm('aes');
     setProgress(0);
     setErrorState(null);
+    setSelectedAlgorithm('aes');
     toast.info('Dashboard reset');
   };
 
@@ -325,12 +284,12 @@ export const EncryptionDashboard = () => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     const img = new Image();
-    
+
     img.onload = () => {
       canvas.width = img.width;
       canvas.height = img.height;
       ctx?.drawImage(img, 0, 0);
-      
+
       canvas.toBlob((blob) => {
         if (blob) {
           const link = document.createElement('a');
@@ -343,7 +302,7 @@ export const EncryptionDashboard = () => {
         }
       }, `image/${format}`, 0.9);
     };
-    
+
     img.src = imageUrl;
   };
 
@@ -378,7 +337,7 @@ export const EncryptionDashboard = () => {
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto mb-6">
             Secure your images with advanced cryptographic algorithms. Upload, encrypt, and analyze with professional-grade tools.
           </p>
-          
+
           {/* Dark Mode Toggle */}
           <Card className="inline-flex items-center space-x-2 p-3 bg-card/50 backdrop-blur-sm">
             <Sun className="h-4 w-4" />
@@ -410,7 +369,7 @@ export const EncryptionDashboard = () => {
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Left Column - Upload & Algorithm */}
           <div className="space-y-6">
-            <UploadZone 
+            <UploadZone
               onImageUpload={handleImageUpload}
               uploadedImage={uploadedImage}
             />
@@ -461,7 +420,7 @@ export const EncryptionDashboard = () => {
         </div>
 
         {/* Metrics */}
-        <MetricsDisplay 
+        <MetricsDisplay
           metrics={metrics}
           isVisible={hasEncrypted}
         />
@@ -469,3 +428,5 @@ export const EncryptionDashboard = () => {
     </div>
   );
 };
+
+export default EncryptionDashboard;
